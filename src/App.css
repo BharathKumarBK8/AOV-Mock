@@ -1192,3 +1192,15 @@ input:checked + .slider:before {
 .add-button:hover {
   background-color: #0056b3;
 }
+.loading {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+}
+
+.error {
+  text-align: center;
+  padding: 2rem;
+  color: red;
+  font-size: 1.2rem;
+}
