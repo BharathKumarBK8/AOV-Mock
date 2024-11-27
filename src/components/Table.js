@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
 import FilterDropdown from './FilterDropdown';
 import FormComponent from './FormComponent';
+import Loader from './Loader';
 import { api } from '../API/Api';
 import '../App.css';
 
@@ -13,10 +14,57 @@ const Table = () => {
   const [editingOffer, setEditingOffer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filteredData, setFilteredData] = useState([]);
+  const [totals, setTotals] = useState({
+    impressions: 0,
+    conversions: 0,
+    revenue: 0,
+    conversionRate: '0.00'
+  });
 
+  // Fetch data effect
   useEffect(() => {
     fetchOffers();
   }, []);
+
+  // Filter data effect
+  useEffect(() => {
+    const filtered = tableData.filter(item => {
+      const matchesSearch = 
+        item.discountCode?.toLowerCase().includes(searchTerm) ||
+        item.impressions?.toString().includes(searchTerm) ||
+        item.conversions?.toString().includes(searchTerm) ||
+        item.revenue?.toString().includes(searchTerm) ||
+        item.conversionRate?.toString().includes(searchTerm);
+
+      const matchesStatus = 
+        statusFilter === 'all' ? true :
+        statusFilter === 'enabled' ? item.isEnabled :
+        !item.isEnabled;
+
+      return matchesSearch && matchesStatus;
+    });
+
+    setFilteredData(filtered);
+  }, [tableData, searchTerm, statusFilter]);
+
+  // Calculate totals effect
+  useEffect(() => {
+    const calculatedTotals = filteredData.reduce((acc, item) => ({
+      impressions: acc.impressions + (item.impressions || 0),
+      conversions: acc.conversions + (item.conversions || 0),
+      revenue: acc.revenue + (item.revenue || 0)
+    }), { impressions: 0, conversions: 0, revenue: 0 });
+
+    const totalConversionRate = calculatedTotals.impressions > 0 
+      ? ((calculatedTotals.conversions / calculatedTotals.impressions) * 100).toFixed(2)
+      : '0.00';
+
+    setTotals({
+      ...calculatedTotals,
+      conversionRate: totalConversionRate
+    });
+  }, [filteredData]);
 
   const fetchOffers = async () => {
     try {
@@ -98,127 +146,101 @@ const Table = () => {
     setEditingOffer(null);
   };
 
-  const filteredData = tableData.filter(item => {
-    const matchesSearch = 
-      item.discountCode?.toLowerCase().includes(searchTerm) ||
-      item.impressions?.toString().includes(searchTerm) ||
-      item.conversions?.toString().includes(searchTerm) ||
-      item.revenue?.toString().includes(searchTerm) ||
-      item.conversionRate?.toString().includes(searchTerm);
-
-    const matchesStatus = 
-      statusFilter === 'all' ? true :
-      statusFilter === 'enabled' ? item.isEnabled :
-      !item.isEnabled;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const totals = filteredData.reduce((acc, item) => ({
-    impressions: acc.impressions + (item.impressions || 0),
-    conversions: acc.conversions + (item.conversions || 0),
-    revenue: acc.revenue + (item.revenue || 0)
-  }), { impressions: 0, conversions: 0, revenue: 0 });
-
-  const totalConversionRate = totals.impressions > 0 
-    ? ((totals.conversions / totals.impressions) * 100).toFixed(2)
-    : '0.00';
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  if (error) {
-    return <div className="error">{error}</div>;
-  }
-
   return (
     <div className="dashboard-container">
-      {isFormVisible ? (
-        <FormComponent 
-          onSubmit={handleAddOffer}
-          onCancel={handleCancel}
-          editData={editingOffer}
-        />
-      ) : (
-        <>
-          <div className='table-controls'>
-            <div className="table-controls-left">
-              <SearchBar onSearch={handleSearch} />
-              <FilterDropdown 
-                onFilterChange={handleFilterChange}
-                currentFilter={statusFilter}
+      <Loader isLoading={loading}>
+        {error ? (
+          <div className="error">{error}</div>
+        ) : (
+          <>
+            {isFormVisible ? (
+              <FormComponent 
+                onSubmit={handleAddOffer}
+                onCancel={handleCancel}
+                editData={editingOffer}
               />
-            </div>
-            <button 
-              className="create-button"
-              onClick={() => setIsFormVisible(true)}
-            >
-              Create New Offer
-            </button>
-          </div>
+            ) : (
+              <>
+                <div className='table-controls'>
+                  <div className="table-controls-left">
+                    <SearchBar onSearch={handleSearch} />
+                    <FilterDropdown 
+                      onFilterChange={handleFilterChange}
+                      currentFilter={statusFilter}
+                    />
+                  </div>
+                  <button 
+                    className="create-button"
+                    onClick={() => setIsFormVisible(true)}
+                  >
+                    Create New Offer
+                  </button>
+                </div>
 
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Offer</th>
-                  <th>Impressions</th>
-                  <th>Conversions</th>
-                  <th>Revenue ($)</th>
-                  <th>Conversion Rate (%)</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <label className="switch">
-                        <input
-                          type="checkbox"
-                          checked={item.isEnabled}
-                          onChange={() => handleToggle(item.id)}
-                        />
-                        <span className="slider round"></span>
-                      </label>
-                    </td>
-                    <td>{item.discountCode}</td>
-                    <td>{item.impressions}</td>
-                    <td>{item.conversions}</td>
-                    <td>{item.revenue?.toFixed(2)}</td>
-                    <td>{item.conversionRate?.toFixed(2)}</td>
-                    <td>
-                      <button 
-                        className="edit-button"
-                        onClick={() => handleEdit(item)}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        className="delete-button"
-                        onClick={() => handleDelete(item.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                <tr className="totals-row">
-                  <td></td>
-                  <td>Total</td>
-                  <td>{totals.impressions}</td>
-                  <td>{totals.conversions}</td>
-                  <td>${totals.revenue.toFixed(2)}</td>
-                  <td>{totalConversionRate}%</td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Offer</th>
+                        <th>Impressions</th>
+                        <th>Conversions</th>
+                        <th>Revenue</th>
+                        <th>Conversion Rate</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredData.map((item) => (
+                        <tr key={item.id}>
+                          <td>
+                            <label className="switch">
+                              <input
+                                type="checkbox"
+                                checked={item.isEnabled}
+                                onChange={() => handleToggle(item.id)}
+                              />
+                              <span className="slider round"></span>
+                            </label>
+                          </td>
+                          <td>{item.discountCode}</td>
+                          <td>{item.impressions}</td>
+                          <td>{item.conversions}</td>
+                          <td>$ {item.revenue?.toFixed(2)}</td>
+                          <td>{item.conversionRate?.toFixed(2)} %</td>
+                          <td>
+                            <button 
+                              className="edit-button"
+                              onClick={() => handleEdit(item)}
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              className="delete-button"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="totals-row">
+                        <td></td>
+                        <td>Total</td>
+                        <td>{totals.impressions}</td>
+                        <td>{totals.conversions}</td>
+                        <td>${totals.revenue.toFixed(2)}</td>
+                        <td>{totals.conversionRate}%</td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                
+              </>
+            )}
+          </>
+        )}
+      </Loader>
     </div>
   );
 };
