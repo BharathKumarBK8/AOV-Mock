@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import debounce from 'lodash/debounce';
 import SearchBar from './SearchBar';
 import FilterDropdown from './FilterDropdown';
 import FormComponent from './FormComponent';
@@ -13,6 +14,7 @@ const Table = () => {
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingOffer, setEditingOffer] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [operationLoading, setOperationLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filteredData, setFilteredData] = useState([]);
   const [totals, setTotals] = useState({
@@ -30,23 +32,16 @@ const Table = () => {
   // Filter data effect
   useEffect(() => {
     const filtered = tableData.filter(item => {
-      const matchesSearch = 
-        item.discountCode?.toLowerCase().includes(searchTerm) ||
-        item.impressions?.toString().includes(searchTerm) ||
-        item.conversions?.toString().includes(searchTerm) ||
-        item.revenue?.toString().includes(searchTerm) ||
-        item.conversionRate?.toString().includes(searchTerm);
-
       const matchesStatus = 
         statusFilter === 'all' ? true :
         statusFilter === 'enabled' ? item.isEnabled :
         !item.isEnabled;
 
-      return matchesSearch && matchesStatus;
+      return matchesStatus;
     });
 
     setFilteredData(filtered);
-  }, [tableData, searchTerm, statusFilter]);
+  }, [tableData, statusFilter]);
 
   // Calculate totals effect
   useEffect(() => {
@@ -80,8 +75,36 @@ const Table = () => {
     }
   };
 
+  const debouncedSearch = useCallback(
+    debounce(async (searchValue) => {
+      try {
+        setOperationLoading(true);
+        // If search is empty or null, fetch all offers instead
+        const searchResults = !searchValue 
+          ? await api.getAllOffers()
+          : await api.searchOffers(searchValue);
+        setTableData(searchResults);
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      } finally {
+        setOperationLoading(false);
+      }
+    }, 500),
+    []
+  );
+  
+  const handleSearch = (value) => {
+    // Handle empty string or null cases
+    const trimmedValue = value?.trim() || '';
+    setSearchTerm(trimmedValue.toLowerCase());
+    debouncedSearch(trimmedValue.toLowerCase());
+  };
+  
   const handleToggle = async (id) => {
     try {
+      setOperationLoading(true);
       const offer = tableData.find(item => item.id === id);
       const updatedOffer = await api.updateOffer(id, { ...offer, isEnabled: !offer.isEnabled });
       setTableData(prevData =>
@@ -92,11 +115,9 @@ const Table = () => {
     } catch (err) {
       console.error(err);
       alert(err.message);
+    } finally {
+      setOperationLoading(false);
     }
-  };
-
-  const handleSearch = (value) => {
-    setSearchTerm(value.toLowerCase());
   };
 
   const handleFilterChange = (value) => {
@@ -105,6 +126,7 @@ const Table = () => {
 
   const handleAddOffer = async (offerData) => {
     try {
+      setOperationLoading(true);
       if (editingOffer) {
         const updatedOffer = await api.updateOffer(editingOffer.id, offerData);
         setTableData(prevData =>
@@ -121,6 +143,8 @@ const Table = () => {
     } catch (err) {
       console.error(err);
       alert(err.message);
+    } finally {
+      setOperationLoading(false);
     }
   };
 
@@ -132,11 +156,14 @@ const Table = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this offer?')) {
       try {
+        setOperationLoading(true);
         await api.deleteOffer(id);
         setTableData(prevData => prevData.filter(item => item.id !== id));
       } catch (err) {
         console.error(err);
         alert(err.message);
+      } finally {
+        setOperationLoading(false);
       }
     }
   };
@@ -148,7 +175,28 @@ const Table = () => {
 
   return (
     <div className="dashboard-container">
-      <Loader isLoading={loading}>
+      {!isFormVisible && (
+        <div className='table-controls'>
+          <div className="table-controls-left">
+            <SearchBar 
+              onSearch={handleSearch} 
+              value={searchTerm}
+            />
+            <FilterDropdown 
+              onFilterChange={handleFilterChange}
+              currentFilter={statusFilter}
+            />
+          </div>
+          <button 
+            className="create-button"
+            onClick={() => setIsFormVisible(true)}
+          >
+            Create New Offer
+          </button>
+        </div>
+      )}
+
+      <Loader isLoading={loading || operationLoading}>
         {error ? (
           <div className="error">{error}</div>
         ) : (
@@ -160,83 +208,63 @@ const Table = () => {
                 editData={editingOffer}
               />
             ) : (
-              <>
-                <div className='table-controls'>
-                  <div className="table-controls-left">
-                    <SearchBar onSearch={handleSearch} />
-                    <FilterDropdown 
-                      onFilterChange={handleFilterChange}
-                      currentFilter={statusFilter}
-                    />
-                  </div>
-                  <button 
-                    className="create-button"
-                    onClick={() => setIsFormVisible(true)}
-                  >
-                    Create New Offer
-                  </button>
-                </div>
-
-                
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        <th>Offer</th>
-                        <th>Impressions</th>
-                        <th>Conversions</th>
-                        <th>Revenue</th>
-                        <th>Conversion Rate</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredData.map((item) => (
-                        <tr key={item.id}>
-                          <td>
-                            <label className="switch">
-                              <input
-                                type="checkbox"
-                                checked={item.isEnabled}
-                                onChange={() => handleToggle(item.id)}
-                              />
-                              <span className="slider round"></span>
-                            </label>
-                          </td>
-                          <td>{item.discountCode}</td>
-                          <td>{item.impressions}</td>
-                          <td>{item.conversions}</td>
-                          <td>$ {item.revenue?.toFixed(2)}</td>
-                          <td>{item.conversionRate?.toFixed(2)} %</td>
-                          <td>
-                            <button 
-                              className="edit-button"
-                              onClick={() => handleEdit(item)}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className="delete-button"
-                              onClick={() => handleDelete(item.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className="totals-row">
-                        <td></td>
-                        <td>Total</td>
-                        <td>{totals.impressions}</td>
-                        <td>{totals.conversions}</td>
-                        <td>${totals.revenue.toFixed(2)}</td>
-                        <td>{totals.conversionRate}%</td>
-                        <td></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                
-              </>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Offer</th>
+                    <th>Impressions</th>
+                    <th>Conversions</th>
+                    <th>Revenue</th>
+                    <th>Conversion Rate</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <label className="switch">
+                          <input
+                            type="checkbox"
+                            checked={item.isEnabled}
+                            onChange={() => handleToggle(item.id)}
+                          />
+                          <span className="slider round"></span>
+                        </label>
+                      </td>
+                      <td>{item.discountCode}</td>
+                      <td>{item.impressions}</td>
+                      <td>{item.conversions}</td>
+                      <td>$ {item.revenue?.toFixed(2)}</td>
+                      <td>{item.conversionRate?.toFixed(2)} %</td>
+                      <td>
+                        <button 
+                          className="edit-button"
+                          onClick={() => handleEdit(item)}
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          className="delete-button"
+                          onClick={() => handleDelete(item.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="totals-row">
+                    <td></td>
+                    <td>Total</td>
+                    <td>{totals.impressions}</td>
+                    <td>{totals.conversions}</td>
+                    <td>${totals.revenue.toFixed(2)}</td>
+                    <td>{totals.conversionRate}%</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
             )}
           </>
         )}
