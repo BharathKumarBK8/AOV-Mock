@@ -4,7 +4,7 @@ import SearchBar from './SearchBar';
 import FilterDropdown from './FilterDropdown';
 import FormComponent from './FormComponent';
 import Loader from './Loader';
-import { api } from '../API/Api';
+import { ApiOffer } from '../API/ApiOffer';
 import '../App.css';
 
 const Table = () => {
@@ -64,7 +64,7 @@ const Table = () => {
   const fetchOffers = async () => {
     try {
       setLoading(true);
-      const data = await api.getAllOffers();
+      const data = await ApiOffer.getAllOffers();
       setTableData(data);
       setError(null);
     } catch (err) {
@@ -81,8 +81,8 @@ const Table = () => {
         setOperationLoading(true);
         // If search is empty or null, fetch all offers instead
         const searchResults = !searchValue 
-          ? await api.getAllOffers()
-          : await api.searchOffers(searchValue);
+          ? await ApiOffer.getAllOffers()
+          : await ApiOffer.searchOffers(searchValue);
         setTableData(searchResults);
         setError(null);
       } catch (err) {
@@ -106,7 +106,7 @@ const Table = () => {
     try {
       setOperationLoading(true);
       const offer = tableData.find(item => item.id === id);
-      const updatedOffer = await api.updateOffer(id, { ...offer, isEnabled: !offer.isEnabled });
+      const updatedOffer = await ApiOffer.updateOffer(id, { ...offer, isEnabled: !offer.isEnabled });
       setTableData(prevData =>
         prevData.map(item =>
           item.id === id ? updatedOffer : item
@@ -128,14 +128,14 @@ const Table = () => {
     try {
       setOperationLoading(true);
       if (editingOffer) {
-        const updatedOffer = await api.updateOffer(editingOffer.id, offerData);
+        const updatedOffer = await ApiOffer.updateOffer(editingOffer.id, offerData);
         setTableData(prevData =>
           prevData.map(item =>
             item.id === editingOffer.id ? updatedOffer : item
           )
         );
       } else {
-        const createdOffer = await api.createOffer(offerData);
+        const createdOffer = await ApiOffer.createOffer(offerData);
         setTableData(prevData => [...prevData, createdOffer]);
       }
       setIsFormVisible(false);
@@ -157,7 +157,7 @@ const Table = () => {
     if (window.confirm('Are you sure you want to delete this offer?')) {
       try {
         setOperationLoading(true);
-        await api.deleteOffer(id);
+        await ApiOffer.deleteOffer(id);
         setTableData(prevData => prevData.filter(item => item.id !== id));
       } catch (err) {
         console.error(err);

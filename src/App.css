@@ -385,8 +385,7 @@ td:first-child {
 }
 
 .dashboard-container {
-  width: 100%;
-  max-width: 1200px;
+  width: 95%;
   margin: 20px auto;
   background: #ffffff;
   border-radius: 10px;
