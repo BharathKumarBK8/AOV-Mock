@@ -75,8 +75,10 @@ const FormComponent = ({ onSubmit, onCancel, editData = null }) => {
 
   return (
     
-    <div className="form-wrapper">
+    
       <form onSubmit={handleSubmit} className="form-container">
+      <div className='left-form'>
+        
         <div className="form-group">
           <label htmlFor="id">Offer ID:</label>
           <input
@@ -369,7 +371,10 @@ const FormComponent = ({ onSubmit, onCancel, editData = null }) => {
             {editData ? 'Update' : 'Create Offer'}
           </button>
           </div>
-        <div class="offer-preview">
+          </div>
+          
+      <div className='right-form'>
+      <div class="offer-preview">
     <h3>Offer Preview</h3>
     <div class="offer-card">
       <img src="product-image.jpg" alt="Product Image" class="product-image"/>
@@ -383,9 +388,10 @@ const FormComponent = ({ onSubmit, onCancel, editData = null }) => {
       </div>
       <button class="add-button">Add it now!</button>
       </div>  
-      </div>  
+      </div>
+      </div>
       </form>
-    </div>
+    
   );
 };
 
